@@ -25,7 +25,8 @@ cat > package.json <<EOF
   "version": "1.0.0",
   "main": "index.js",
   "dependencies": {
-    "sharp": "^0.32.1"
+    "sharp": "^0.32.1",
+    "@google-cloud/storage": "^7.10.0"
   }
 }
 EOF
@@ -36,9 +37,9 @@ const sharp = require('sharp');
 const { Storage } = require('@google-cloud/storage');
 const path = require('path');
 const os = require('os');
-const fs = require('fs');
 
 const storage = new Storage();
+
 exports.thumbnail = async (event, context) => {
   const bucketName = event.bucket;
   const filePath = event.name;
@@ -46,13 +47,13 @@ exports.thumbnail = async (event, context) => {
   const bucket = storage.bucket(bucketName);
 
   if (fileName.startsWith('thumb_')) {
-    console.log('Already a thumbnail.');
+    console.log('Already a thumbnail, skipping.');
     return;
   }
 
   const tempFilePath = path.join(os.tmpdir(), fileName);
   await bucket.file(filePath).download({ destination: tempFilePath });
-  console.log(\`Image downloaded locally to \${tempFilePath}\`);
+  console.log(\`Downloaded \${filePath} to \${tempFilePath}\`);
 
   const thumbFilePath = path.join(os.tmpdir(), 'thumb_' + fileName);
   await sharp(tempFilePath)
@@ -63,7 +64,7 @@ exports.thumbnail = async (event, context) => {
     destination: 'thumb_' + fileName,
   });
 
-  console.log('Thumbnail created and uploaded.');
+  console.log('Thumbnail created and uploaded as thumb_' + fileName);
 };
 EOF
 
@@ -72,9 +73,8 @@ cd ..
 echo "✅ Deploying Cloud Function..."
 gcloud functions deploy $FUNCTION_NAME \
   --gen2 \
-  --runtime=nodejs16 \
+  --runtime=nodejs18 \
   --region=$REGION \
   --entry-point=thumbnail \
   --trigger-bucket=$BUCKET \
   --allow-unauthenticated
-
